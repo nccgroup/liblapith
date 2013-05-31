@@ -30,15 +30,54 @@ class Results:
     def __init__(self, scan_list):
         self._scan_list = scan_list
 
-    @property
-    def targets(self):
-        tags = (x.findall(".//ReportHost/HostProperties/tag[@name='host-ip']")
-                for x in self._scan_list)
-        ips = (y.text for y in chain.from_iterable(tags))
-        return list(ips)
-
     def __repr__(self):
         if len(self._scan_list) == 1:
             return "<Results - {0} scan>".format(len(self._scan_list))
         else:
             return "<Results - {0} scans>".format(len(self._scan_list))
+
+    @property
+    def targets(self):
+        hosts = chain.from_iterable(x.findall("Report/ReportHost") for x in self._scan_list)
+        keys = (x.findall("HostProperties/tag[@name='host-ip']") for x in hosts)
+        result = dict()
+        for host in hosts:
+            ip = host.find("HostProperties/tag[@name='host-ip']").text
+            items = host.findall("ReportItem")
+            result[ip] = dict(zip((int(x.attrib["pluginID"]) for x in items),
+                (x.find("plugin_output").text for x in items if
+                x.find("plugin_output") is not None)))
+        return result
+
+    @property
+    def policies(self):
+        policies = (x.find("Policy/policyName").text for x in
+                self._scan_list)
+        return list(policies)
+
+    @property
+    def plugins(self):
+        items = chain.from_iterable(x.findall("Report/ReportHost/ReportItem") for x in
+                self._scan_list)
+        keys = (int(x.attrib["pluginID"]) for x in items)
+
+        result = dict()
+        targets = self.targets
+        for key in keys:
+            hosts = dict()
+            for host in targets:
+                if key in targets[host]:
+                    hosts[host] = targets[host][key]
+            result[key] = hosts
+        return result
+
+    def add_file(self, obj):
+        try:
+            self._scan_list.append(ET.parse(obj))
+        except (IOError):
+            ## passed a string that cannot be found, so assume it's
+            ## XML data
+            try:
+                self._scan_list.append(ET.fromstring(obj))
+            except (ET.ParseError):
+                raise TypeError("Could not parse", obj)
