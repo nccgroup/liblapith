@@ -1,5 +1,13 @@
 # Liblapith - a library for parsing Nessus results files
 
+Released as open source by NCC Group Plc - http://www.nccgroup.com/
+
+Developed by Felix Ingram, felix dot ingram at nccgroup dot com
+
+http://www.github.com/nccgroup/liblaptith
+
+Released under LGPL. See LICENSE for more information
+
 ## Example
 
 ```
