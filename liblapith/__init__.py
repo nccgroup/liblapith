@@ -17,37 +17,38 @@ PROPERTY_TAGS = (
     "host-ip",
     "netbios-name",
     "host-fqdn",
-    )
+)
 PLUGIN_MULTITAGS = (
-        ("bid", int),
-        ("cert", str),
-        ("cve", str),
-        ("edb-id", str),
-        ("osvdb", int),
-        ("see_also", str),
-        ("xref", str),
-        )
+    ("bid", int),
+    ("cert", str),
+    ("cve", str),
+    ("edb-id", str),
+    ("osvdb", int),
+    ("see_also", str),
+    ("xref", str),
+)
 PLUGIN_TAGS = (
-        ("cpe", str),
-        ("cvss_base_score", float),
-        ("cvss_temporal_score", float),
-        ("cvss_temporal_vector", str),
-        ("cvss_vector", str),
-        ("description", str),
-        ("exploit_available", str),
-        ("exploitability_ease", str),
-        ("fname", str),
-        ("patch_publication_date", lambda x: datetime.strptime(x, "%Y/%m/%d")),
-        ("plugin_modification_date", lambda x: datetime.strptime(x, "%Y/%m/%d")),
-        ("plugin_name", str),
-        ("plugin_output", str),
-        ("plugin_publication_date", lambda x: datetime.strptime(x, "%Y/%m/%d")),
-        ("plugin_type", str),
-        ("risk_factor", str),
-        ("solution", str),
-        ("synopsis", str),
-        ("vuln_publication_date", lambda x: datetime.strptime(x, "%Y/%m/%d")),
-        )
+    ("cpe", str),
+    ("cvss_base_score", float),
+    ("cvss_temporal_score", float),
+    ("cvss_temporal_vector", str),
+    ("cvss_vector", str),
+    ("description", str),
+    ("exploit_available", str),
+    ("exploitability_ease", str),
+    ("fname", str),
+    ("patch_publication_date", lambda x: datetime.strptime(x, "%Y/%m/%d")),
+    ("plugin_modification_date", lambda x: datetime.strptime(x, "%Y/%m/%d")),
+    ("plugin_name", str),
+    ("plugin_output", str),
+    ("plugin_publication_date", lambda x: datetime.strptime(x, "%Y/%m/%d")),
+    ("plugin_type", str),
+    ("risk_factor", str),
+    ("solution", str),
+    ("synopsis", str),
+    ("vuln_publication_date", lambda x: datetime.strptime(x, "%Y/%m/%d")),
+)
+
 
 def load(objects):
     if not isinstance(objects, list):
@@ -65,6 +66,7 @@ def load(objects):
                 raise TypeError("Could not parse", scan)
     return Results(scanned)
 
+
 class Results:
     def __init__(self, scan_list):
         self._scan_list = scan_list
@@ -77,36 +79,42 @@ class Results:
 
     @property
     def targets(self):
-        hosts = chain.from_iterable(x.findall("Report/ReportHost") for x in self._scan_list)
+        hosts = chain.from_iterable(
+            x.findall("Report/ReportHost") for x in self._scan_list)
         result = defaultdict(dict)
         for host in hosts:
-            keys = list(host.findtext("HostProperties/tag[@name='{0}']".format(x)) for x in PROPERTY_TAGS)
+            keys = list(
+                host.findtext("HostProperties/tag[@name='{0}']".format(x))
+                for x in PROPERTY_TAGS)
             items = host.findall("ReportItem")
             for item in items:
                 id_ = int(item.attrib["pluginID"])
                 attribs = item.attrib
                 for tag, conv in PLUGIN_TAGS:
                     text = item.findtext(tag)
-                    if text: attribs[tag] = conv(text)
+                    if text:
+                        attribs[tag] = conv(text)
                 for tag, conv in PLUGIN_MULTITAGS:
                     tags = item.findall(tag)
                     if tags:
                         texts = (x.findtext(".") for x in tags)
                         attribs[tag] = list(conv(x) for x in texts if x)
                 for key in keys:
-                    if key: result[key][id_] = attribs ## Key could be None if Property has no text
+                    if key:
+                        ## Key could be None if Property has no text
+                        result[key][id_] = attribs
         return result
 
     @property
     def policies(self):
         policies = (x.findtext("Policy/policyName", "NO POLICY NAME") for x in
-                self._scan_list)
+                    self._scan_list)
         return list(policies)
 
     @property
     def plugins(self):
-        items = chain.from_iterable(x.findall("Report/ReportHost/ReportItem") for x in
-                self._scan_list)
+        items = chain.from_iterable(x.findall("Report/ReportHost/ReportItem")
+                                    for x in self._scan_list)
         keys = (int(x.attrib["pluginID"]) for x in items)
         result = dict()
         targets = self.targets
