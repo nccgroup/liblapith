@@ -9,6 +9,39 @@ except ImportError:
     from xml.etree import ElementTree as ET
 
 from itertools import chain
+from collections import defaultdict
+from datetime import datetime
+
+PLUGIN_MULTITAGS = (
+        ("bid", int),
+        ("cert", str),
+        ("cve", str),
+        ("edb-id", str),
+        ("osvdb", int),
+        ("see_also", str),
+        ("xref", str),
+        )
+PLUGIN_TAGS = (
+        ("cpe", str),
+        ("cvss_base_score", float),
+        ("cvss_temporal_score", float),
+        ("cvss_temporal_vector", str),
+        ("cvss_vector", str),
+        ("description", str),
+        ("exploit_available", str),
+        ("exploitability_ease", str),
+        ("fname", str),
+        ("patch_publication_date", lambda x: datetime.strptime(x, "%Y/%m/%d")),
+        ("plugin_modification_date", lambda x: datetime.strptime(x, "%Y/%m/%d")),
+        ("plugin_name", str),
+        ("plugin_output", str),
+        ("plugin_publication_date", lambda x: datetime.strptime(x, "%Y/%m/%d")),
+        ("plugin_type", str),
+        ("risk_factor", str),
+        ("solution", str),
+        ("synopsis", str),
+        ("vuln_publication_date", lambda x: datetime.strptime(x, "%Y/%m/%d")),
+        )
 
 def load(objects):
     if not isinstance(objects, list):
@@ -40,18 +73,27 @@ class Results:
     def targets(self):
         hosts = chain.from_iterable(x.findall("Report/ReportHost") for x in self._scan_list)
         keys = (x.findall("HostProperties/tag[@name='host-ip']") for x in hosts)
-        result = dict()
+        result = defaultdict(dict)
         for host in hosts:
-            ip = host.find("HostProperties/tag[@name='host-ip']").text
+            ip = host.findtext("HostProperties/tag[@name='host-ip']", "NO-IP")
             items = host.findall("ReportItem")
-            result[ip] = dict(zip((int(x.attrib["pluginID"]) for x in items),
-                (x.find("plugin_output").text for x in items if
-                x.find("plugin_output") is not None)))
+            for item in items:
+                id_ = int(item.attrib["pluginID"])
+                attribs = item.attrib
+                for tag, conv in PLUGIN_TAGS:
+                    text = item.findtext(tag)
+                    if text: attribs[tag] = conv(text)
+                for tag, conv in PLUGIN_MULTITAGS:
+                    tags = item.findall(tag)
+                    if tags:
+                        texts = (x.findtext(".") for x in tags)
+                        attribs[tag] = list(conv(x) for x in texts if x)
+                result[ip][id_] = attribs
         return result
 
     @property
     def policies(self):
-        policies = (x.find("Policy/policyName").text for x in
+        policies = (x.findtext("Policy/policyName", "NO POLICY NAME") for x in
                 self._scan_list)
         return list(policies)
 
@@ -60,7 +102,6 @@ class Results:
         items = chain.from_iterable(x.findall("Report/ReportHost/ReportItem") for x in
                 self._scan_list)
         keys = (int(x.attrib["pluginID"]) for x in items)
-
         result = dict()
         targets = self.targets
         for key in keys:
