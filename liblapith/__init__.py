@@ -12,6 +12,12 @@ from itertools import chain
 from collections import defaultdict
 from datetime import datetime
 
+PROPERTY_TAGS = (
+    "mac-address",
+    "host-ip",
+    "netbios-name",
+    "host-fqdn",
+    )
 PLUGIN_MULTITAGS = (
         ("bid", int),
         ("cert", str),
@@ -72,10 +78,9 @@ class Results:
     @property
     def targets(self):
         hosts = chain.from_iterable(x.findall("Report/ReportHost") for x in self._scan_list)
-        keys = (x.findall("HostProperties/tag[@name='host-ip']") for x in hosts)
         result = defaultdict(dict)
         for host in hosts:
-            ip = host.findtext("HostProperties/tag[@name='host-ip']", "NO-IP")
+            keys = list(host.findtext("HostProperties/tag[@name='{0}']".format(x)) for x in PROPERTY_TAGS)
             items = host.findall("ReportItem")
             for item in items:
                 id_ = int(item.attrib["pluginID"])
@@ -88,7 +93,8 @@ class Results:
                     if tags:
                         texts = (x.findtext(".") for x in tags)
                         attribs[tag] = list(conv(x) for x in texts if x)
-                result[ip][id_] = attribs
+                for key in keys:
+                    if key: result[key][id_] = attribs ## Key could be None if Property has no text
         return result
 
     @property
