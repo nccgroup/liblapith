@@ -37,3 +37,5 @@ nosetests.xml
 
 # Project specific
 *.nessus
+Nessus.py
+test.py
